@@ -26,24 +26,25 @@ enfermedad(gastroenteritis, [
     nauseas, vomitos, diarrea, dolor_abdominal, fiebre_leve
 ]).
 
-% Reglas de inferencia
-sintoma_presente(Sintoma) :-
-    format('¿Presenta el paciente ~w? (si/no): ', [Sintoma]),
-    read(Respuesta),
-    Respuesta == si.
-
-diagnosticar_enfermedad(Enfermedad) :-
-    enfermedad(Enfermedad, Sintomas),
-    forall(member(Sintoma, Sintomas), sintoma_presente(Sintoma)).
-
 % Interfaz web
 :- http_handler(root(.), home, []).
-:- http_handler(root(diagnosticar), diagnosticar, []).
+:- http_handler(root(diagnosticar), diagnostico, []).
 :- http_handler(root(resultado), mostrar_resultado, []).
 
-% Servidor principal
+% Guardar el ID del servidor
+:- dynamic servidor_id/1.
+
+%Encendido del servidor local
 start_server(Port) :-
-    http_server(http_dispatch, [port(Port)]).
+    http_server(http_dispatch, [port(Port), workers(1)]),
+    assertz(servidor_id(Port)).
+
+%Apaga el servidor
+stop_server :-
+    servidor_id(Port),
+    http_stop_server(Port, []),
+    retract(servidor_id(Port)),
+    format('Servidor detenido en el puerto ~w.~n', [Port]).
 
 % Página de inicio
 home(_Request) :-
@@ -53,8 +54,8 @@ home(_Request) :-
             div([class='container'],
                 [
                     h1('Sistema Experto de Diagnóstico Médico'),
-                    img([src='/images/doctor.jpg', alt='Doctor', width='300']),
-                    p('Este sistema ayuda a diagnosticar posibles enfermedades basadas en los síntomas.'),
+                    img([src='./imagenes/doctor.png', alt='Doctor', width='300']),
+                    p('Este sistema ayuda a diagnosticar posibles enfermedades de las vias respiratorias basandonos en los síntomas.'),
                     p('Haga clic en el botón para comenzar el diagnóstico:'),
                     form([action='/diagnosticar', method='POST'],
                         [input([type=submit, value='Comenzar Diagnóstico', class='btn'])])
@@ -64,20 +65,18 @@ home(_Request) :-
 % Proceso de diagnóstico
 diagnostico(Request) :-
     member(method(post), Request),
-    findall(Enfermedad, (enfermedad(Enfermedad, _)), Enfermedades),
+    findall(Enfermedad, enfermedad(Enfermedad, _), Enfermedades),
     reply_html_page(
         title('Diagnóstico - Preguntas'),
         [
             div([class='container'],
                 [
                     h1('Diagnóstico de Enfermedades'),
-                    img([src='/images/sintomas.jpg', alt='Síntomas', width='300']),
+                    img([src='./images/sintomas.png', alt='Síntomas', width='300']),
                     p('Por favor responda las siguientes preguntas:'),
                     form([action='/resultado', method='POST'],
                         [
-                            ul([],
-                                maplist(crear_pregunta, Enfermedades)
-                            ),
+                            ul([], maplist(crear_pregunta, Enfermedades)),
                             input([type=submit, value='Obtener Diagnóstico', class='btn'])
                         ])
                 ])
@@ -87,12 +86,11 @@ crear_pregunta(Enfermedad) :-
     enfermedad(Enfermedad, Sintomas),
     li([
         h2(Enfermedad),
-        ul([],
-            maplist(crear_opcion(Enfermedad), Sintomas)
+        ul([], maplist(crear_opcion(Enfermedad), Sintomas))
     ]).
 
 crear_opcion(Enfermedad, Sintoma) :-
-    li([input([type=checkbox, name=Sintoma, value=Enfermedad]), ' ', Sintoma]).
+    li([input([type=checkbox, name=Sintoma, value='true']), ' ', label([for=Sintoma], Sintoma)]).
 
 % Mostrar resultados
 mostrar_resultado(Request) :-
@@ -108,10 +106,9 @@ mostrar_resultado(Request) :-
             div([class='container'],
                 [
                     h1('Resultados del Diagnóstico'),
-                    img([src='/images/resultados.jpg', alt='Resultados', width='300']),
+                    img([src='/images/resultados.png', alt='Resultados', width='300']),
                     h2('Enfermedades posibles:'),
-                    ul([],
-                        maplist(li, EnfermedadesPosibles)),
+                    ul([], maplist(li, EnfermedadesPosibles)),
                     p('NOTA: Este es solo un sistema experto educativo. Consulte a un médico para un diagnóstico real.'),
                     a([href='/'], 'Volver al inicio')
                 ])

@@ -5,7 +5,7 @@
 :- use_module(library(http/http_server_files)).
 :- use_module(library(pengines)).
 
-% Base de conocimiento: Enfermedades y sus síntomas
+% Base de conocimiento: Enfermedades y sus sï¿½ntomas
 enfermedad(gripe, [
     fiebre, tos, dolor_de_cabeza, dolor_muscular, fatiga
 ]).
@@ -31,42 +31,53 @@ enfermedad(gastroenteritis, [
 :- http_handler(root(diagnosticar), diagnostico, []).
 :- http_handler(root(resultado), mostrar_resultado, []).
 
-% Servidor principal
-start_server(Port) :-
-    http_server(http_dispatch, [port(Port)]).
+% Guardar el ID del servidor
+:- dynamic servidor_id/1.
 
-% Página de inicio
+%Encendido del servidor local
+start_server(Port) :-
+    http_server(http_dispatch, [port(Port), workers(1)]),
+    assertz(servidor_id(Port)).
+
+%Apaga el servidor
+stop_server :-
+    servidor_id(Port),
+    http_stop_server(Port, []),
+    retract(servidor_id(Port)),
+    format('Servidor detenido en el puerto ~w.~n', [Port]).
+
+% Pï¿½gina de inicio
 home(_Request) :-
     reply_html_page(
-        title('Sistema Experto de Diagnóstico Médico'),
+        title('Sistema Experto de Diagnostico Medico'),
         [
             div([class='container'],
                 [
-                    h1('Sistema Experto de Diagnóstico Médico'),
-                    img([src='/images/doctor.jpg', alt='Doctor', width='300']),
-                    p('Este sistema ayuda a diagnosticar posibles enfermedades basadas en los síntomas.'),
-                    p('Haga clic en el botón para comenzar el diagnóstico:'),
+                    h1('Sistema Experto de Diagnostico Medico'),
+                    img([src='/imagenes/doctor.png', alt='Doctor', width='300']),
+                    p('Este sistema ayuda a diagnosticar posibles enfermedades de las vias respiratorias basandonos en los sintomas.'),
+                    p('Haga clic en el boton para comenzar el diagnostico:'),
                     form([action='/diagnosticar', method='POST'],
-                        [input([type=submit, value='Comenzar Diagnóstico', class='btn'])])
+                        [input([type=submit, value='Comenzar Diagnostico', class='btn'])])
                 ])
         ]).
 
-% Proceso de diagnóstico
+% Proceso de diagnï¿½stico
 diagnostico(Request) :-
     member(method(post), Request),
     findall(Enfermedad, enfermedad(Enfermedad, _), Enfermedades),
     reply_html_page(
-        title('Diagnóstico - Preguntas'),
+        title('Diagnostico - Preguntas'),
         [
             div([class='container'],
                 [
-                    h1('Diagnóstico de Enfermedades'),
-                    img([src='/images/sintomas.jpg', alt='Síntomas', width='300']),
+                    h1('Diagnostico de Enfermedades'),
+                    img([src='/imagenes/sintomas.png', alt='Sintomas', width='300']),
                     p('Por favor responda las siguientes preguntas:'),
                     form([action='/resultado', method='POST'],
                         [
                             ul([], maplist(crear_pregunta, Enfermedades)),
-                            input([type=submit, value='Obtener Diagnóstico', class='btn'])
+                            input([type=submit, value='Obtener Diagnostico', class='btn'])
                         ])
                 ])
         ]).
@@ -90,18 +101,19 @@ mostrar_resultado(Request) :-
         subset(Sintomas, SintomasPresentes)
     ), EnfermedadesPosibles),
     reply_html_page(
-        title('Resultados del Diagnóstico'),
+        title('Resultados del Diagnostico'),
         [
             div([class='container'],
                 [
-                    h1('Resultados del Diagnóstico'),
-                    img([src='/images/resultados.jpg', alt='Resultados', width='300']),
+                    h1('Resultados del Diagnostico'),
+                    img([src='/imagenes/resultados.png', alt='Resultados', width='300']),
                     h2('Enfermedades posibles:'),
                     ul([], maplist(li, EnfermedadesPosibles)),
-                    p('NOTA: Este es solo un sistema experto educativo. Consulte a un médico para un diagnóstico real.'),
+                    p('NOTA: Este es solo un sistema experto educativo. Consulte a un medico para un diagnostico real.'),
                     a([href='/'], 'Volver al inicio')
                 ])
         ]).
 
-% Archivos estáticos (imágenes)
-:- http_handler(root(images), http_reply_from_files('images', []), [prefix]).
+:- absolute_file_name(imagenes, ImgDir, [file_type(directory), access(read)]),
+   http_handler(root(imagenes), http_reply_from_files(ImgDir, []), [prefix]).
+

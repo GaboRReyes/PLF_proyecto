@@ -1,0 +1,107 @@
+:- use_module(library(http/thread_httpd)).
+:- use_module(library(http/http_dispatch)).
+:- use_module(library(http/http_files)).
+:- use_module(library(http/html_write)).
+:- use_module(library(http/http_server_files)).
+:- use_module(library(pengines)).
+
+% Base de conocimiento: Enfermedades y sus síntomas
+enfermedad(gripe, [
+    fiebre, tos, dolor_de_cabeza, dolor_muscular, fatiga
+]).
+
+enfermedad(resfriado_comun, [
+    congestion_nasal, estornudos, dolor_de_garganta, tos_leve
+]).
+
+enfermedad(covid19, [
+    fiebre, tos_persistente, perdida_de_olfato, perdida_de_gusto, dificultad_respiratoria
+]).
+
+enfermedad(alergia_estacional, [
+    estornudos, picazon_ojos, congestion_nasal, ojos_lagrimosos
+]).
+
+enfermedad(gastroenteritis, [
+    nauseas, vomitos, diarrea, dolor_abdominal, fiebre_leve
+]).
+
+% Interfaz web
+:- http_handler(root(.), home, []).
+:- http_handler(root(diagnosticar), diagnostico, []).
+:- http_handler(root(resultado), mostrar_resultado, []).
+
+% Servidor principal
+start_server(Port) :-
+    http_server(http_dispatch, [port(Port)]).
+
+% Página de inicio
+home(_Request) :-
+    reply_html_page(
+        title('Sistema Experto de Diagnóstico Médico'),
+        [
+            div([class='container'],
+                [
+                    h1('Sistema Experto de Diagnóstico Médico'),
+                    img([src='/images/doctor.jpg', alt='Doctor', width='300']),
+                    p('Este sistema ayuda a diagnosticar posibles enfermedades basadas en los síntomas.'),
+                    p('Haga clic en el botón para comenzar el diagnóstico:'),
+                    form([action='/diagnosticar', method='POST'],
+                        [input([type=submit, value='Comenzar Diagnóstico', class='btn'])])
+                ])
+        ]).
+
+% Proceso de diagnóstico
+diagnostico(Request) :-
+    member(method(post), Request),
+    findall(Enfermedad, enfermedad(Enfermedad, _), Enfermedades),
+    reply_html_page(
+        title('Diagnóstico - Preguntas'),
+        [
+            div([class='container'],
+                [
+                    h1('Diagnóstico de Enfermedades'),
+                    img([src='/images/sintomas.jpg', alt='Síntomas', width='300']),
+                    p('Por favor responda las siguientes preguntas:'),
+                    form([action='/resultado', method='POST'],
+                        [
+                            ul([], maplist(crear_pregunta, Enfermedades)),
+                            input([type=submit, value='Obtener Diagnóstico', class='btn'])
+                        ])
+                ])
+        ]).
+
+crear_pregunta(Enfermedad) :-
+    enfermedad(Enfermedad, Sintomas),
+    li([
+        h2(Enfermedad),
+        ul([], maplist(crear_opcion(Enfermedad), Sintomas))
+    ]).
+
+crear_opcion(Enfermedad, Sintoma) :-
+    li([input([type=checkbox, name=Sintoma, value='true']), ' ', label([for=Sintoma], Sintoma)]).
+
+% Mostrar resultados
+mostrar_resultado(Request) :-
+    member(method(post), Request),
+    findall(Sintoma, (member(Sintoma=_, Request), atom(Sintoma)), SintomasPresentes),
+    findall(Enfermedad, (
+        enfermedad(Enfermedad, Sintomas),
+        subset(Sintomas, SintomasPresentes)
+    ), EnfermedadesPosibles),
+    reply_html_page(
+        title('Resultados del Diagnóstico'),
+        [
+            div([class='container'],
+                [
+                    h1('Resultados del Diagnóstico'),
+                    img([src='/images/resultados.jpg', alt='Resultados', width='300']),
+                    h2('Enfermedades posibles:'),
+                    ul([], maplist(li, EnfermedadesPosibles)),
+                    p('NOTA: Este es solo un sistema experto educativo. Consulte a un médico para un diagnóstico real.'),
+                    a([href='/'], 'Volver al inicio')
+                ])
+        ]).
+
+% Archivos estáticos (imágenes)
+:- http_handler(root(images), http_reply_from_files('images', []), [prefix]).

@@ -4,6 +4,8 @@
 :- use_module(library(http/html_write)).
 :- use_module(library(http/http_server_files)).
 :- use_module(library(pengines)).
+:- set_prolog_flag(encoding, utf8).
+
 
 % Base de conocimiento: Enfermedades y sus s�ntomas
 enfermedad(gripe, [
@@ -60,34 +62,47 @@ home(_Request) :-
                     form([action='/diagnosticar', method='POST'],
                         [input([type=submit, value='Comenzar Diagnostico', class='btn'])])
                 ])
-        ]).
+        ],
+        [encoding(utf8)]).
 
 % Proceso de diagn�stico
 diagnostico(Request) :-
     member(method(post), Request),
-    findall(Enfermedad, enfermedad(Enfermedad, _), Enfermedades),
+    sintomas_unicos(Sintomas),
     reply_html_page(
-        title('Diagnostico - Preguntas'),
+        title('Diagnóstico - Preguntas'),
         [
             div([class='container'],
                 [
                     h1('Diagnostico de Enfermedades'),
-                    img([src='/imagenes/sintomas.png', alt='Sintomas', width='300']),
-                    p('Por favor responda las siguientes preguntas:'),
+                    img([src='/imagenes/sintomas.png', alt='Síntomas', width='300']),
+                    p('Por favor responde las siguientes preguntas sobre los sintomas que tienes:'),
                     form([action='/resultado', method='POST'],
-                        [
-                            ul([], maplist(crear_pregunta, Enfermedades)),
-                            input([type=submit, value='Obtener Diagnostico', class='btn'])
-                        ])
-                ])
-        ]).
+    [
+        \preguntas_html(Sintomas),
+        input([type=submit, value='Obtener Diagnóstico', class='btn'])
+    ])
 
-crear_pregunta(Enfermedad) :-
-    enfermedad(Enfermedad, Sintomas),
-    li([
-        h2(Enfermedad),
-        ul([], maplist(crear_opcion(Enfermedad), Sintomas))
-    ]).
+                ])
+        ],
+        [encoding(utf8)]).
+
+preguntas_html(Sintomas) -->
+    html(ul(\lista_preguntas(Sintomas))).
+
+lista_preguntas([]) --> [].
+lista_preguntas([Sintoma | Resto]) -->
+    html(li([
+        input([type=checkbox, name=Sintoma, value='true']),
+        label([for=Sintoma], [' ¿Tiene ', Sintoma, '?'])
+    ])),
+    lista_preguntas(Resto).
+
+
+sintomas_unicos(SintomasUnicos) :-
+    findall(S, (enfermedad(_, Lista), member(S, Lista)), Todos),
+    sort(Todos, SintomasUnicos).
+
 
 crear_opcion(Enfermedad, Sintoma) :-
     li([input([type=checkbox, name=Sintoma, value='true']), ' ', label([for=Sintoma], Sintoma)]).
@@ -110,9 +125,19 @@ mostrar_resultado(Request) :-
                     h2('Enfermedades posibles:'),
                     ul([], maplist(li, EnfermedadesPosibles)),
                     p('NOTA: Este es solo un sistema experto educativo. Consulte a un medico para un diagnostico real.'),
-                    a([href='/'], 'Volver al inicio')
+                   form([action='/resetear', method='POST'],
+    [input([type=submit, value='Volver al inicio', class='btn'])])
                 ])
-        ]).
+        ],
+        [encoding(utf8)]).
+
+:- http_handler(root(resetear), redirigir_inicio, [method(post)]).
+
+redirigir_inicio(Request) :-
+    http_read_data(Request, _IgnoredData, []),  % <- lee y descarta el cuerpo POST
+    http_redirect(moved, '/', Request).
+
+
 
 :- absolute_file_name(imagenes, ImgDir, [file_type(directory), access(read)]),
    http_handler(root(imagenes), http_reply_from_files(ImgDir, []), [prefix]).
